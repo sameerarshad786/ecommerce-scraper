@@ -1,0 +1,5 @@
+.env
+.flake8
+scraper-env
+venv
+__pycache__
