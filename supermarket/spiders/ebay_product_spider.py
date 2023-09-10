@@ -3,6 +3,7 @@ import scrapy
 from urllib.request import urlopen
 from decimal import Decimal
 
+from scrapy.linkextractors import LinkExtractor
 from scrapy.http import Request
 from lxml import html
 
@@ -20,18 +21,24 @@ class EbayProductsSpider(scrapy.Spider):
         )
 
     def parse(self, response, **kwargs):
-        electronic_section = response.xpath("//ul/li[contains(a, 'Electronics')]/a/@href").get()
+        electronic_section = LinkExtractor(
+            tags="a", attrs="href", restrict_text="Electronics"
+        )
+        _data = {}
+        for data in electronic_section.extract_links(response):
+            _data["url"] = data.url
+            _data["type"] = data.text
         kwargs = {
             "icon": response.xpath("//link[@rel='icon']/@href").get(),
-            "type": response.xpath("//ul/li[contains(a, 'Electronics')]/a/span/text() | //ul/li[contains(a, 'Electronics')]/a/text()").get()
+            "type": _data["type"]
         }
-        yield Request(electronic_section, callback=self.parse_electronics, meta=kwargs)
+        yield Request(_data["url"], callback=self.parse_electronics, meta=kwargs)
 
     def parse_electronics(self, response, **kwargs):
         a_elements = response.xpath("//section/div/a[div[contains(text(), 'Cell Phones, Smart Watches & Accessories')]]/@href").get()
         yield Request(a_elements, callback=self.parse_brands_products, meta=response.meta)
 
-    async def parse_brands_products(self, response, **kwargs):
+    def parse_brands_products(self, response, **kwargs):
         brand_urls = response.xpath("//section/div/a[@class='b-visualnav__tile b-visualnav__tile__default']/@href")[10:].getall()
         brand_names = response.xpath("//a/div[@class='b-visualnav__title']/text()")[10:].getall()
 
@@ -67,17 +74,15 @@ class EbayProductsSpider(scrapy.Spider):
                 item["condition"] = "used"
                 item["type"] = product_type
                 yield item
-                break
-            break
 
     def parse_name(self, product):
         name = product.xpath(".//a/h3[@class='s-item__title']/text() | .//a/h3[@class='s-item__title']/span/text()")
-        filtered_name = [x for x in name if x.lower() != "new listing"]
+        filtered_name = list(filter(lambda x:x.lower() != "new listing", name))
         return filtered_name[0]
 
     def parse_url(self, product):
         return product.xpath(".//div/a[@class='s-item__link']/@href")[0]
-    
+
     def parse_price(self, product):
         price = product.xpath(".//div/span[@class='s-item__price']/text()")
         return list(map(lambda x:x.replace('$', '').replace(",", ""), price))
@@ -85,6 +90,7 @@ class EbayProductsSpider(scrapy.Spider):
     def parse_original_price(self, product):
         original_price = product.xpath(".//div/span[@class='s-item__trending-price']/span/text()")
         if  original_price:
+            print(list(map(lambda x:x.replace("was", "").replace("$", ""), original_price)))
             if "was" in original_price[0].lower():
                 return original_price[0].replace("$", "")
             else:
