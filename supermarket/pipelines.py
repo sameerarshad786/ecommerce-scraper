@@ -112,14 +112,31 @@ class SupermarketPipeline:
 
         except psycopg2.IntegrityError:
             warning = colorama.Fore.YELLOW + f"""
-                Already in database\n{item}\n\n\n
+                \nProduct Updated\n{item}\n\n\n
             """
             print(warning)
-            self.connection.rollback()
+            query = f"""
+                UPDATE products_products SET
+                name='{name}',
+                description='{description}',
+                brand='{brand}',
+                image='{image}',
+                items_sold='{items_sold}',
+                ratings='{ratings}',
+                condition='{condition}',
+                original_price='{original_price}',
+                price='{price_}',
+                shipping_charges='{shipping_charges}',
+                source='{source}',
+                discount='{discount}'
+                type_id='{type_id}'
+                WHERE url='{url}'
+            """
+            self.connection.commit()
 
         except Exception as e:
             error = colorama.Fore.RED + f"""
-                {item}\n{e}\n\n\n
+                \n{item}\n{e}\n\n\n
             """
             print(error)
             self.connection.rollback()
