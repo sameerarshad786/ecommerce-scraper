@@ -51,7 +51,7 @@ class SupermarketPipeline:
         type = item.get("type")
 
         if len(price) == 1:
-            price_ = f"numrange({Decimal(price[0])}, {Decimal(price[0])}, '[)')"
+            price_ = f"numrange({Decimal(price[0])}, NULL, '[)')"
         else:
             price_ = f"numrange({Decimal(price[0])}, {Decimal(price[1])}, '[)')"
 
