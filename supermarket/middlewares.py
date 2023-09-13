@@ -52,6 +52,8 @@ class SupermarketSpiderMiddleware:
         for r in start_requests:
             if spider.name == "ebay":
                 r.headers["Referer"] = "https://www.google.com/search?q=ebay&oq=ebay&aqs=chrome.0.0i271j46i67i131i199i433i465i650j35i39j69i60l5.1394j0j7&sourceid=chrome&ie=UTF-8"
+            elif spider.name == "daraz":
+                r.headers["Referer"] = "https://www.google.com/search?q=daraz&oq=daraz&aqs=chrome.0.0i271j46i131i199i433i465i512j35i39j0i131i433i512l2j69i60l3.2267j0j7&sourceid=chrome&ie=UTF-8"
             yield r
 
     def spider_opened(self, spider):
