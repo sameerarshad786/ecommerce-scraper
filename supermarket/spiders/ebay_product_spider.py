@@ -1,3 +1,4 @@
+import re
 import scrapy
 
 from urllib.request import urlopen
@@ -12,13 +13,7 @@ from supermarket.items import ProductsItem
 
 class EbayProductsSpider(scrapy.Spider):
     name = "ebay"
-    url = "https://www.ebay.com/"
-
-    def start_requests(self):
-        yield Request(
-            self.url,
-            callback=self.parse
-        )
+    start_urls = ["https://www.ebay.com/"]
 
     def parse(self, response, **kwargs):
         electronic_section = LinkExtractor(
@@ -28,10 +23,7 @@ class EbayProductsSpider(scrapy.Spider):
         for data in electronic_section.extract_links(response):
             _data["url"] = data.url
             _data["type"] = data.text
-        kwargs = {
-            "icon": response.xpath("//link[@rel='icon']/@href").get(),
-            "type": _data["type"]
-        }
+        kwargs = {"type": _data["type"]}
         yield Request(_data["url"], callback=self.parse_electronics, meta=kwargs)
 
     def parse_electronics(self, response, **kwargs):
@@ -39,11 +31,15 @@ class EbayProductsSpider(scrapy.Spider):
         yield Request(a_elements, callback=self.parse_brands_products, meta=response.meta)
 
     def parse_brands_products(self, response, **kwargs):
-        brand_urls = response.xpath("//section/div/a[@class='b-visualnav__tile b-visualnav__tile__default']/@href")[10:].getall()
-        brand_names = response.xpath("//a/div[@class='b-visualnav__title']/text()")[10:].getall()
-
-        for brand_url, brand_name in zip(brand_urls, brand_names):
-            url = urlopen(brand_url)
+        brands = (
+            LinkExtractor(
+                tags="a",
+                attrs="href",
+                restrict_xpaths="//h2[contains(text(), 'Shop by brand')]/ancestor::section"
+            ).extract_links(response)
+        )
+        for brand in brands:
+            url = urlopen(brand.url)
             page = html.fromstring(url.read(), "lxml")
             products = page.xpath("//li/div[@class='s-item__wrapper clearfix']")
             for product in products:
@@ -55,13 +51,13 @@ class EbayProductsSpider(scrapy.Spider):
                 items_sold = self.parse_items_sold(product)
                 shipping_charges = self.parse_shipping_charges(product)
                 ratings = self.parse_ratings(product)
-                discount = self.calulate_discount(product)
+                discount = self.calulate_discount(price[0], original_price) if price and original_price else 0
                 product_type = response.meta.get("type")
 
                 item = ProductsItem()
                 item["name"] = name
                 item["description"] = ""
-                item["brand"] = brand_name.split(" ")[0].lower()
+                item["brand"] = item.get_brand(brand.text)
                 item["url"] = url
                 item["price"] = price
                 item["source"] = "ebay"
@@ -85,16 +81,15 @@ class EbayProductsSpider(scrapy.Spider):
 
     def parse_price(self, product):
         price = product.xpath(".//div/span[@class='s-item__price']/text()")
-        return list(map(lambda x:x.replace('$', '').replace(",", ""), price))
+        return list(map(lambda x:re.sub(r"[^\d.]", "", x), price))
 
     def parse_original_price(self, product):
         original_price = product.xpath(".//div/span[@class='s-item__trending-price']/span/text()")
-        if  original_price:
-            print(list(map(lambda x:x.replace("was", "").replace("$", ""), original_price)))
-            if "was" in original_price[0].lower():
-                return original_price[0].replace("$", "")
+        if original_price:
+            if re.search(r"\d", original_price[0]):
+                return re.sub(r"[^\d.]", "", original_price[0])
             else:
-                return 0
+                return 0.00
         return 0.00
 
     def parse_image(self, product):
@@ -111,32 +106,26 @@ class EbayProductsSpider(scrapy.Spider):
         if sold:
             items_sold = sold[0]
             if "sold" in items_sold:
-                items_sold = int(items_sold.replace("sold", "").replace(",", ""))
+                items_sold = int(re.sub(r"[^\d.]", "", items_sold))
             else:
                 items_sold = 0
         return items_sold
 
     def parse_shipping_charges(self, product):
-        shipping = product.xpath(".//div[@class='s-item__detail s-item__detail--primary']/span/text()")
-        if shipping:
-            return Decimal(shipping[0].replace("$", "").replace("shipping", "").replace(",", ""))
+        shipping = product.xpath(".//span[@class='s-item__shipping s-item__logisticsCost']/text()")
+        if list(filter(lambda x:re.search(r"\d", x), shipping)):
+            return Decimal(re.sub(r"[^\d.]", "", shipping[0]))
         else:
             return 0.00
 
     def parse_ratings(self, product):
         ratings = product.xpath(".//span[@class='b-rating__rating-count']/span/text()")
         if ratings:
-            return Decimal(ratings[0].replace("(", "").replace(")", ""))
+            return Decimal(re.sub(r"[^\d.]", "", ratings[0]))
         else:
             return 0.00
 
-    def calulate_discount(self, product):
-        price = product.xpath(".//div/span[@class='s-item__price']/text()")
-        if len(price) > 1:
-            price = price[0].replace("$", "")
-        original_price = product.xpath(".//div/span[@class='s-item__trending-price']/span/text()")
-        if  original_price:
-            if "was" in original_price[0].lower():
-                original_price = original_price[0].replace("$", "")
-                return ((original_price-price)/original_price)*100 if original_price != price else 0
-        return 0
+    def calulate_discount(self, price, original_price):
+        price = Decimal(price)
+        original_price = Decimal(original_price)
+        return ((original_price-price)/original_price)*100 if original_price != price else 0

@@ -21,3 +21,12 @@ class ProductsItem(scrapy.Item):
     shipping_charges = scrapy.Field()
     source = scrapy.Field()
     discount = scrapy.Field()
+
+    def get_brand(self, brand):
+        if brand:
+            brand_names = ["not defined", "apple", "samsung", "google", "lg", "huawei", "htc", "oneplus", "blackberry", "motorola", "nokia", "redmi", "oppo", "vivo", "itel", "infinix", "sony", "realme", "tecno", "xiaomi", "honor"]
+            brand = brand.lower().split(" ")[0]
+            brand = brand_names.index(brand)
+            return brand_names[brand]
+        else:
+            return brand[0]
