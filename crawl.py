@@ -3,7 +3,7 @@ from scrapy.utils.log import configure_logging
 from scrapy.utils.project import get_project_settings
 from twisted.internet import reactor
 
-from supermarket.spiders import DarazProductSpider, EbayProductsSpider
+from supermarket.spiders import DarazProductSpider, EbayProductsSpider, AmazonProductSpider
 
 
 def run_spiders():
@@ -16,6 +16,7 @@ def run_spiders():
     runner = CrawlerRunner(settings=settings)
     runner.crawl(DarazProductSpider)
     runner.crawl(EbayProductsSpider)
+    runner.crawl(AmazonProductSpider)
 
     d = runner.join()
     d.addBoth(lambda _: reactor.stop())
