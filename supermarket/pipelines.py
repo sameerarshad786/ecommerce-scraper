@@ -35,7 +35,7 @@ class SupermarketPipeline:
 
     def process_item(self, item, spider):
         uuid_ptr_id = uuid.uuid4()
-        name = item.get("name")
+        name = item.get("name").replace("'", "''")
         description = item.get("description")
         brand = item.get("brand")
         image = item.get("image")
